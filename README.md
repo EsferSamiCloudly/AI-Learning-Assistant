@@ -928,15 +928,9 @@ CREATE INDEX ON vectors.document_chunks
   WITH (lists = 100);
 ```
 
----
 
-## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/amazing-feature`
-3. Commit your changes: `git commit -m 'Add amazing feature'`
-4. Push to the branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+
 
 ---
 
@@ -950,6 +944,6 @@ This project is licensed under the MIT License.
 
 **Md Esfer Abdus Sami**
 
-Built with ❤️ using FastAPI, LangGraph, pgvector, and Next.js 15.
+Built with  using FastAPI, LangGraph, pgvector, and Next.js 15.
 
 > 🔗 API Docs: http://localhost:8000/docs | App: http://localhost:3000
