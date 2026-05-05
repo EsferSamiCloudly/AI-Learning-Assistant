@@ -713,54 +713,82 @@ POST /auth/logout:
 ## 📄 PDF Pipeline
 
 ```
-User uploads PDF
-       │
-       ▼
-Backend: await file.read() → bytes in memory
-       │
-       ▼
-Base64 encode bytes
-       │
-       ▼
-INSERT INTO app.documents (embed_status='pending')
-       │
-       ▼
-await db.commit()  ← CRITICAL: must commit before BackgroundTask
-       │
-       ▼
-BackgroundTask → POST http://localhost:8001/embed
-       │
-       └─────────────── MCP Server /embed ───────────────────┐
-                                                             │
-       base64 decode → io.BytesIO → pypdf.PdfReader         │
-                │                                            │
-       extract text per page [{page_number, content}]       │
-                │                                            │
-       RecursiveCharacterTextSplitter                        │
-         chunk_size=400, chunk_overlap=100                   │
-         skips empty pages and empty chunks                  │
-                │                                            │
-       SentenceTransformer.encode(texts, batch_size=32)      │
-         model: all-MiniLM-L6-v2                             │
-         output: numpy array shape (N, 384) float32          │
-                │                                            │
-       asyncpg: SET search_path TO app, auth, vectors        │
-       verify document EXISTS (::uuid cast)                  │
-       executemany → INSERT INTO vectors.document_chunks     │
-       UPDATE app.documents SET embed_status='done'          │
-                                                             │
-       └────────────────────────────────────────────────────┘
-       │
-       ▼
-Frontend polls GET /tasks/{document_id} every 2 seconds
-  embed_status mapping:
-    'done'       → 'SUCCESS'
-    'processing' → 'STARTED'
-    'pending'    → 'PENDING'
-    'failed'     → 'FAILURE'
-       │
-       ▼
-  Status = SUCCESS → Chat button enabled
+┌─────────────────────────────────────────────────────────────┐
+│                      USER UPLOADS PDF                       │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│              await file.read() → bytes in memory            │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Base64 encode bytes                       │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│         INSERT INTO app.documents (embed_status='pending')  │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│   ⚠️  await db.commit()                                      │
+│       CRITICAL: must commit before BackgroundTask           │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│        BackgroundTask → POST http://localhost:8001/embed    │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    MCP Server  /embed                       │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  base64 decode → io.BytesIO → pypdf.PdfReader         │  │
+│  └───────────────────────┬───────────────────────────────┘  │
+│                          │                                  │
+│  ┌───────────────────────▼───────────────────────────────┐  │
+│  │  extract text per page  [{page_number, content}]      │  │
+│  └───────────────────────┬───────────────────────────────┘  │
+│                          │                                  │
+│  ┌───────────────────────▼───────────────────────────────┐  │
+│  │  RecursiveCharacterTextSplitter                       │  │
+│  │    chunk_size=400, chunk_overlap=100                  │  │
+│  │    skips empty pages and empty chunks                 │  │
+│  └───────────────────────┬───────────────────────────────┘  │
+│                          │                                  │
+│  ┌───────────────────────▼───────────────────────────────┐  │
+│  │  SentenceTransformer.encode(texts, batch_size=32)     │  │
+│  │    model:  all-MiniLM-L6-v2                           │  │
+│  │    output: numpy array shape (N, 384)  float32        │  │
+│  └───────────────────────┬───────────────────────────────┘  │
+│                          │                                  │
+│  ┌───────────────────────▼───────────────────────────────┐  │
+│  │  asyncpg: SET search_path TO app, auth, vectors       │  │
+│  │  verify document EXISTS (::uuid cast)                 │  │
+│  │  executemany → INSERT INTO vectors.document_chunks    │  │
+│  │  UPDATE app.documents SET embed_status='done'         │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│        Frontend polls  GET /tasks/{document_id}             │
+│                        every 2 seconds                      │
+│                                                             │
+│    'pending'    →  PENDING                                  │
+│    'processing' →  STARTED                                  │
+│    'done'       →  SUCCESS                                  │
+│    'failed'     →  FAILURE                                  │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Status = SUCCESS → Chat button enabled  ✅      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
